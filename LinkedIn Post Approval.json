@@ -1,0 +1,432 @@
+{
+  "name": "LinkedIn Post Approval",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Topic: {{ $('On form submission1').first().json.Topic }}\n\nDraft post:\n\"\"\"\n{{ $json.output }}\n\"\"\"\n\nReview this draft against your standards and return the improved final post.",
+        "options": {
+          "systemMessage": "You are a strict LinkedIn editor. You improve posts; you never explain your changes.\n\nScore the draft privately out of 10 on each of these:\n1. Hook - does line one alone make a professional want to read on?\n2. Clarity - one main idea, short sentences, no jargon or filler.\n3. CTA - exactly one clear call to action (a question or an action), near the end.\n\nRewrite the weakest of the three. Then check the whole post against these hard rules and fix anything that fails:\n- 120-150 words\n- Line one is the hook\n- Exactly one call to action\n- At most 3 hashtags, on the last line\n- Plain text only (no markdown, no bold, no bullet symbols), at most 2 emojis\n- No invented statistics, quotes, names or personal stories\n- Stays on the given topic\n\nOutput rules: return ONLY the final post, ready to paste into LinkedIn.\nDo not include the scores, feedback, headings, notes or quotation marks."
+        }
+      },
+      "id": "f706ebd7-51c3-437e-9ba6-6a851a462917",
+      "name": "Reviewer Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        576,
+        736
+      ],
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "formTitle": "LinkedIn Post Generator",
+        "formDescription": "Type a topic. An AI writer drafts a LinkedIn post, an AI reviewer improves it, and the final version is emailed to you for approval.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Topic",
+              "placeholder": "e.g. Remote work",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "respondWithOptions": {
+            "values": {
+              "formSubmittedText": "Got it! Your post is being written and reviewed. Check your inbox for the approval email."
+            }
+          }
+        }
+      },
+      "id": "93566a26-b0e1-4537-adc2-ef16d7c8d256",
+      "name": "On form submission1",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        736
+      ],
+      "webhookId": "8a603641-890e-4e45-963e-3cc8376dae12"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Write a LinkedIn post about: {{ $json.Topic }}\n\nRules:\n- Line one is the hook: one short sentence that makes a professional stop scrolling.\n- 120-150 words in total.\n- Short paragraphs of 1-2 sentences, with a blank line between them.\n- Exactly one call to action, near the end.\n- At most 3 hashtags, on the last line.\n\nReturn the post only - no title, no preamble, no quotation marks.",
+        "needsFallback": true,
+        "options": {
+          "systemMessage": "You are a LinkedIn ghostwriter for a working professional.\nWrite in the first person, in plain, confident, conversational English.\nUse plain text only: no markdown, no bold, no bullet symbols.\nNever invent statistics, quotes, company names or personal stories. If a point needs evidence, keep it general rather than specific.\nUse at most 2 emojis, or none."
+        }
+      },
+      "id": "3e686eb5-e1b3-4e20-aafb-b8a04d57a7fc",
+      "name": "Writer Agent1",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        224,
+        736
+      ],
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.7-flash",
+        "options": {
+          "temperature": 0.8
+        }
+      },
+      "id": "5c570cc0-3091-4433-8e8b-abd1af989b42",
+      "name": "Writer Model1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        304,
+        976
+      ],
+      "notesInFlow": false,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "VleuQ8BTtjSvSjfD",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini",
+          "cachedResultName": "gpt-5-mini"
+        },
+        "options": {
+          "reasoningEffort": "low"
+        }
+      },
+      "id": "37025b91-85d5-4455-ad71-ba4b26b39855",
+      "name": "Reviewer Model1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        656,
+        976
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "mCauGNAySnTVNurS",
+          "name": "OpenAI account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "sendTo": "your.email@gmail.com",
+        "subject": "=LinkedIn post for approval: {{ $('On form submission1').first().json.Topic }}",
+        "message": "=Topic: {{ $('On form submission1').first().json.Topic }}\n\n{{ $json.output }}\n\n------------------------------\nApprove to save this post to your Google Sheet. Reject to discard it.\nThis request expires in 24 hours.",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double",
+            "disapproveLabel": "Reject"
+          }
+        },
+        "options": {
+          "limitWaitTime": {
+            "values": {
+              "resumeUnit": "minutes"
+            }
+          },
+          "appendAttribution": true
+        }
+      },
+      "id": "c764ddf5-30d1-4218-9cd4-c781bcbe42af",
+      "name": "Send for Approval1",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        928,
+        736
+      ],
+      "webhookId": "c767c0f9-02e4-4751-9843-71dabb3a8b55",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EPlUXBFqJIKH5y7I",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "542d0349-6265-4d33-8dba-5f9a5edd0b5b",
+              "leftValue": "={{ $json.data?.approved === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "92859af3-d0b4-4f51-ac81-0eb8cfd267ce",
+      "name": "Approved?1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1152,
+        736
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1IG9xOE5SeDn4dHVmSTOxyFX2_BjH2MGdpqzi6ty6U90",
+          "mode": "list",
+          "cachedResultName": "LinkedIn Posts",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1IG9xOE5SeDn4dHVmSTOxyFX2_BjH2MGdpqzi6ty6U90/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1IG9xOE5SeDn4dHVmSTOxyFX2_BjH2MGdpqzi6ty6U90/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $now.setZone('Asia/Kolkata').toFormat('yyyy-MM-dd') }}",
+            "Topic": "={{ $('On form submission1').first().json.Topic }}",
+            "Final Post": "={{ $('Reviewer Agent').first().json.output }}",
+            "Status": "Approved"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Topic",
+              "displayName": "Topic",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Final Post",
+              "displayName": "Final Post",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "8ff46340-59df-472b-9863-be3b1dd61fad",
+      "name": "Save Approved Post1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1376,
+        640
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BTtyjU5DZGYVnHpg",
+          "name": "Google Sheets - Ganapathyraman"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "4064ec41-835e-4a05-99e4-66e86f1fde62",
+      "name": "Rejected - Not Saved1",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1376,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "responsesApiEnabled": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        80,
+        944
+      ],
+      "id": "8ea1974e-c85f-46ce-be5a-98ef36210900",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "mCauGNAySnTVNurS",
+          "name": "OpenAI account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Reviewer Agent": {
+      "main": [
+        [
+          {
+            "node": "Send for Approval1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission1": {
+      "main": [
+        [
+          {
+            "node": "Writer Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Writer Agent1": {
+      "main": [
+        [
+          {
+            "node": "Reviewer Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Writer Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Writer Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reviewer Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Reviewer Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send for Approval1": {
+      "main": [
+        [
+          {
+            "node": "Approved?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?1": {
+      "main": [
+        [
+          {
+            "node": "Save Approved Post1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rejected - Not Saved1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Writer Agent1",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "1392d04f-3794-4ed9-bab8-b7a59627d2c4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a3bc426882fc510d065edbe57913cf0ed5b66b6ec4b55f03d5f098fb80b0e0e7"
+  },
+  "nodeGroups": [],
+  "id": "V4VzTSdjSVnQaqfk",
+  "tags": []
+}
